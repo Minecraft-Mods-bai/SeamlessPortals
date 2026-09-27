@@ -74,6 +74,18 @@ public final class SeamMirrorClient {
     private static long declinedNotPredicting = 0L;
 
     /**
+     * {@link Level}-typed entry for the block-write driver (LevelChunkSetBlockStateMixin), which
+     * the SERVER weaves too and therefore may not name {@code ClientLevel} in its handler body
+     * (dedicated-server dist split, 2026-09-27). The cast happens here, in a client-only class the
+     * mixin resolves only inside its {@code isClientSide()} branch.
+     */
+    public static void onSeamCellChanged(Level level, BlockPos pos) {
+        if (level instanceof ClientLevel clientLevel) {
+            onSeamCellChanged(clientLevel, pos, clientLevel.getBlockState(pos));
+        }
+    }
+
+    /**
      * Called from the block-write driver for a CLIENT level whose cell is bound to a seam.
      *
      * @param level    the client level that changed

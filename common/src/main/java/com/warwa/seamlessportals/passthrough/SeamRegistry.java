@@ -297,11 +297,12 @@ public final class SeamRegistry {
     public static void bind(Portal portal) {
         // ★ PASSTHROUGH EXTRAS belt: the tick-path gate in AperturePassthroughInit is the
         // master (it also releases live bindings); this head check covers any future caller.
-        if (!qouteall.imm_ptl.core.platform_specific.IPConfig.getConfig().passthroughExtras) {
-            return;
-        }
         Level level = portal.level();
         if (level == null) {
+            return;
+        }
+        // Multiplayer 2026-09-27: server-sent value on the client (SeamPassthroughSync).
+        if (!SeamPassthroughSync.enabled(level)) {
             return;
         }
         boolean mirrorable = SeamMap.isMirrorable(portal);

@@ -66,54 +66,19 @@ public final class AperturePassthroughInit {
         Portal.CLIENT_PORTAL_TICK_SIGNAL.register(AperturePassthroughInit::onPortalTick);
         Portal.PORTAL_DISPOSE_SIGNAL.register(AperturePassthroughInit::onPortalDispose);
 
-        // SAME-DIMENSION PORTAL TERRAIN FRESHNESS (com.warwa.seamlessportals.render.SameDimRemesh).
-        //
-        // A SEPARATE registration on the client tick signal, deliberately NOT folded into
-        // onPortalTick above: that handler returns early on an unchanged geometry fingerprint, which
-        // for a stable portal is every tick after the first. SameDimRemesh needs the portal EVERY
-        // tick — its destination-region list is rebuilt per tick so a removed portal stops
-        // qualifying immediately.
-        Portal.CLIENT_PORTAL_TICK_SIGNAL.register(
-            com.warwa.seamlessportals.render.SameDimRemesh::onClientPortalTick);
-        // POST_CLIENT_TICK fires on the main thread after the world tick, never mid-extract or
-        // mid-render — the same ordering guarantee SecondaryWorldRenderCore's own per-tick pump
-        // relies on, and the reason the drain can append to the main LevelRenderState safely.
-        qouteall.imm_ptl.core.IPGlobal.POST_CLIENT_TICK_EVENT.register(
-            () -> com.warwa.seamlessportals.render.SameDimRemesh.onEndClientTick(
-                net.minecraft.client.Minecraft.getInstance()));
-        // SEAM CLIP recompile flush — same ordering guarantee, SEPARATE accounting from
-        // SameDimRemesh by design (SEAM_CLIP_DESIGN.md §2: sharing its COMPILED set would have
-        // masked the RS-DELIVERY arm-3 verdict).
-        qouteall.imm_ptl.core.IPGlobal.POST_CLIENT_TICK_EVENT.register(
-            () -> com.warwa.seamlessportals.render.SeamClipRenderer.onEndClientTick(
-                net.minecraft.client.Minecraft.getInstance()));
-        // (e) DEFECT-B ride sampler. Same ordering guarantee. Costs one boolean test per tick
-        // outside a crossing window (SeamRideProbe.windowOpen), and the window is opened only by
-        // an actual client-side dimension change and closed after SeamRideProbe.WINDOW_TICKS.
-        qouteall.imm_ptl.core.IPGlobal.POST_CLIENT_TICK_EVENT.register(() -> {
-            if (!SeamRideProbe.windowOpen()) {
-                return;
-            }
-            net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-            net.minecraft.world.entity.Entity player = mc == null ? null : mc.player;
-            net.minecraft.world.entity.Entity vehicle = player == null ? null : player.getVehicle();
-            int watched = SeamRideProbe.watchedVehicleId();
-            SeamRideProbe.onEndClientTick(
-                player, vehicle,
-                mc == null || mc.level == null
-                    ? "null" : mc.level.dimension().identifier().toString(),
-                mc != null && mc.level != null && watched >= 0
-                    && mc.level.getEntity(watched) != null);
-        });
-
-        // RS-XTALK live round 3 — CLIENT-VIEW probe (1 Hz, -PseamSignalProbe only): what the
-        // CLIENT holds per seam cell — chunk state with POWERED, occupancy mask, side-table
-        // secondary with ITS powered bit. The dynamic seam draw renders exactly these
-        // (SeamClipRenderer reads live client state per frame), so diffing this line against the
-        // server-side "pair truth" line attributes a dark-looking seam rail to the client sync,
-        // the side-table fragment, or the render, in one glance. Log-only; touches nothing.
-        qouteall.imm_ptl.core.IPGlobal.POST_CLIENT_TICK_EVENT.register(
-            AperturePassthroughInit::clientSeamViewProbe);
+        // CLIENT-ONLY hooks — SameDimRemesh's per-tick portal registration, the two
+        // POST_CLIENT_TICK drains (same-dim remesh, seam-clip flush), the DEFECT-B ride sampler
+        // and the RS-XTALK client-view probe — live in AperturePassthroughClientInit, at this exact
+        // slot in the registration order. DEDICATED-SERVER DIST SPLIT (2026-09-27): this method
+        // runs at server/common init on BOTH loaders, and those lambdas were compiled into
+        // synthetic methods of THIS class; the ride sampler's `mc.player` (a LocalPlayer) handed
+        // to an Entity is an assignability proof the verifier completes by LOADING LocalPlayer, so
+        // the whole class failed to LINK on a dedicated server (NeoForge strips nothing; Fabric
+        // strips only annotated members, and a lambda cannot carry @Environment). The helper is
+        // RESOLVED only on a physical client — an invokestatic resolves when executed.
+        if (!com.warwa.seamlessportals.platform.Platform.get().isDedicatedServer()) {
+            AperturePassthroughClientInit.init();
+        }
 
         // Journal drain, once per server tick per level. Opportunistic: entries whose chunk is still
         // absent are kept rather than force-loaded, because an entry only exists BECAUSE loading was
@@ -168,7 +133,9 @@ public final class AperturePassthroughInit {
         // consulting the registry this gate starves. Cost while OFF and unbound: one map
         // lookup per portal-tick. Live both directions (the fingerprint removal below makes
         // the next ON tick re-bind unconditionally).
-        if (!qouteall.imm_ptl.core.platform_specific.IPConfig.getConfig().passthroughExtras) {
+        // Multiplayer 2026-09-27: the CLIENT reads the value the SERVER sent (SeamPassthroughSync),
+        // so both sides of a connection always agree on whether seams bind.
+        if (!SeamPassthroughSync.enabled(portal.level())) {
             Map<UUID, Long> fingerprints = fingerprintsFor(portal);
             if (fingerprints.remove(portal.getUUID()) != null) {
                 SeamRegistry.unbind(portal);
@@ -261,42 +228,5 @@ public final class AperturePassthroughInit {
         return ((SeamIndexHolder) level).seamlessportals$bindFingerprints().size();
     }
 
-    private static long clientSeamViewProbeLast = 0;
-
-    /** RS-XTALK round 3 — the 1 Hz client-view line; see the registration comment. Log-only. */
-    private static void clientSeamViewProbe() {
-        if (!AperturePassthroughLever.SEAM_SIGNAL_PROBE) {
-            return;
-        }
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-        if (mc == null || mc.level == null) {
-            return;
-        }
-        long now = System.nanoTime();
-        if (now - clientSeamViewProbeLast < 1_000_000_000L) {
-            return;
-        }
-        clientSeamViewProbeLast = now;
-        var cells = ((SeamIndexHolder) mc.level).seamlessportals$seamCells();
-        if (cells.isEmpty()) {
-            return;
-        }
-        var powered = net.minecraft.world.level.block.state.properties.BlockStateProperties.POWERED;
-        for (var e : cells.long2ObjectEntrySet()) {
-            net.minecraft.core.BlockPos pos = net.minecraft.core.BlockPos.of(e.getLongKey());
-            var st = mc.level.getBlockState(pos);
-            if (st.isAir()) {
-                continue;
-            }
-            var sec = SeamOccupancy.secondaryOf(mc.level, pos);
-            LOGGER.info("[RS-SIGNAL] client view: {} {} powered={} mask={} secondary={}{}",
-                pos, st.getBlock(),
-                st.hasProperty(powered) ? st.getValue(powered) : "n/a",
-                SeamOccupancy.occupancyOf(mc.level, pos),
-                sec != null,
-                sec == null ? "" : (" secBlock=" + sec.state().getBlock() + " secPowered="
-                    + (sec.state().hasProperty(powered) ? sec.state().getValue(powered) : "n/a")
-                    + " secHalf=" + sec.half()));
-        }
-    }
+    // (The RS-XTALK client-view probe moved to AperturePassthroughClientInit — dist split.)
 }

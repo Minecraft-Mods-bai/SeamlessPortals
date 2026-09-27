@@ -80,6 +80,17 @@ public class SeamlessPortalsClientFabric implements ClientModInitializer {
         // the NEXT packet, i.e. never after a quiet relog. One branch per tick when empty.
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(
             mc -> com.warwa.seamlessportals.passthrough.SeamOccupancyClient.flushPendingTick());
+        // ★ PASSTHROUGH EXTRAS is server-authoritative over a connection (multiplayer 2026-09-27):
+        // receive the server's switch (sent on join, before the occupancy burst, and on every
+        // server-side config change) and forget it when a new connection starts. Same
+        // unconditional placement + rationale as the occupancy receiver above.
+        net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.registerGlobalReceiver(
+            com.warwa.seamlessportals.network.ModPayloads.SeamPassthroughConfigPayload.TYPE,
+            (payload, context) -> context.client().execute(() ->
+                com.warwa.seamlessportals.passthrough.SeamPassthroughSync.applyServerValue(
+                    payload.passthroughExtras())));
+        net.fabricmc.fabric.api.client.networking.v1.ClientLoginConnectionEvents.INIT.register(
+            (handler, client) -> com.warwa.seamlessportals.passthrough.SeamPassthroughSync.reset());
 
         if (SeamlessPortalsConfig.isEntityPortals()) {
             // ===== ENTITY-PORTAL (Immersive Portals) client init — S13 step 4 =====================

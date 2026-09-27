@@ -33,6 +33,9 @@ neoForge {
             // handshake leg: config-phase ImmPtlConfigurationTask over a real connection).
             if (project.findProperty('quickPlayServer')) {
                 programArguments.addAll('--quickPlayMultiplayer', project.findProperty('quickPlayServer').toString())
+                // Multiplayer smoke 2026-09-27: the fixed username the standalone server run dirs
+                // pre-op (runs/server/ops.json, offline-mode UUID of "SmokePlayer").
+                programArguments.addAll('--username', 'SmokePlayer')
             }
             // NF-PARITY W18: the C2 JIT protection is a property of the ported render code,
             // NOT of the loader — the EXCEPTION_ACCESS_VIOLATION reproduced on both Temurin

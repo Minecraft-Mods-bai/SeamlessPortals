@@ -330,6 +330,10 @@ public class IPConfig implements ConfigData {
         }
 
         IPGlobal.renderMode = compatibilityRenderMode ? IPGlobal.RenderMode.compatibility : IPGlobal.RenderMode.normal;
+        // Multiplayer 2026-09-27: passthroughExtras is server-authoritative over a connection —
+        // push the (possibly changed) value to every connected player of the running server (the
+        // integrated one included, which is how a singleplayer toggle still lands within a tick).
+        com.warwa.seamlessportals.passthrough.SeamPassthroughSync.broadcastFromServer();
         // S19-E increment 3 — NAMED DEVIATION guard (removed at C2; see ExperimentalCompatGate).
         // When the fabric client detected Sodium/Iris flag-ON while the compat gate is off, portal
         // views were force-disabled for the session. onConfigChanged re-derives renderMode from the

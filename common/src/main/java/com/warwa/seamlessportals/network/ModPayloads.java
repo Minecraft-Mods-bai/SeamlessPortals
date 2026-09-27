@@ -567,6 +567,27 @@ public class ModPayloads {
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
+    /**
+     * ★ PASSTHROUGH EXTRAS master switch, server → client (multiplayer, 2026-09-27): the server's
+     * {@code IPConfig.passthroughExtras}, sent on join (before the occupancy burst) and on every
+     * server-side config change. The client uses it instead of its own file while connected —
+     * see {@code SeamPassthroughSync}. Registered unconditionally like every type here.
+     */
+    public record SeamPassthroughConfigPayload(boolean passthroughExtras) implements CustomPacketPayload {
+        public static final Type<SeamPassthroughConfigPayload> TYPE = new Type<>(
+            Identifier.fromNamespaceAndPath(SeamlessPortalsConstants.MOD_ID, "seam_passthrough_config")
+        );
+
+        public static final StreamCodec<FriendlyByteBuf, SeamPassthroughConfigPayload> STREAM_CODEC =
+            StreamCodec.composite(
+                ByteBufCodecs.BOOL, SeamPassthroughConfigPayload::passthroughExtras,
+                SeamPassthroughConfigPayload::new
+            );
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
     public record RemoteBlockUpdatePayload(
         String dimensionId,
         long packedPos,

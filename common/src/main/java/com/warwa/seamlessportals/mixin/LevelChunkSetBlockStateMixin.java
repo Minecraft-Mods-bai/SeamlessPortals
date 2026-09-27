@@ -106,11 +106,17 @@ public abstract class LevelChunkSetBlockStateMixin {
         // the destination ClientLevel and files it with the prediction handler so the server's ack
         // resolves it either way. Everything below is server-only, so this returns rather than
         // falling through.
-        if (this.level instanceof net.minecraft.client.multiplayer.ClientLevel clientLevel) {
+        // DEDICATED-SERVER DIST SPLIT (2026-09-27): this used to be `instanceof ClientLevel`,
+        // which a dedicated server EXECUTED on every block change (NoClassDefFoundError — the
+        // class does not exist there) and whose ClientLevel→Level hand-off to sectionHasSeam was
+        // an assignability proof that made the woven LevelChunk fail to LINK outright. The
+        // discriminator is isClientSide(); the client helper does the cast behind a Level-typed
+        // entry, and is resolved only when this branch actually runs (never on a server).
+        if (this.level.isClientSide()) {
             BlockState settledClient = cir.getReturnValue();
-            if (settledClient != null && SeamRegistry.sectionHasSeam(clientLevel, pos)) {
+            if (settledClient != null && SeamRegistry.sectionHasSeam(this.level, pos)) {
                 com.warwa.seamlessportals.passthrough.SeamMirrorClient.onSeamCellChanged(
-                    clientLevel, pos, clientLevel.getBlockState(pos));
+                    this.level, pos);
             }
             return;
         }

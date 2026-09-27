@@ -91,6 +91,16 @@ public class SeamlessPortalsClientNeoForge {
         // per tick when empty.
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) ->
             com.warwa.seamlessportals.passthrough.SeamOccupancyClient.flushPendingTick());
+        // ★ PASSTHROUGH EXTRAS is server-authoritative over a connection (multiplayer 2026-09-27,
+        // Fabric twin in SeamlessPortalsClientFabric): receive the server's switch and forget it
+        // when a new connection starts (the facade's connection-reset hook = ClientLoginConnection
+        // INIT on Fabric / the NF login-start equivalent).
+        com.warwa.seamlessportals.network.PlatformHelper.getInstance().registerClientPayloadHandler(
+            com.warwa.seamlessportals.network.ModPayloads.SeamPassthroughConfigPayload.TYPE,
+            (payload, client) -> com.warwa.seamlessportals.passthrough.SeamPassthroughSync
+                .applyServerValue(payload.passthroughExtras()));
+        com.warwa.seamlessportals.platform.ClientPlatform.get().onNewConnectionStateReset(
+            com.warwa.seamlessportals.passthrough.SeamPassthroughSync::reset);
 
         if (SeamlessPortalsConfig.isEntityPortals()) {
             // ===== WIRE 3: flag-ON render DISPATCH ========================================

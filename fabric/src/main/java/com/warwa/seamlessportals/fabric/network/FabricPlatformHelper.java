@@ -254,6 +254,11 @@ public class FabricPlatformHelper implements PlatformHelper {
             ModPayloads.SeamOccupancyPayload.TYPE,
             ModPayloads.SeamOccupancyPayload.STREAM_CODEC
         );
+        // Multiplayer 2026-09-27: the server-authoritative passthroughExtras switch.
+        PayloadTypeRegistry.clientboundPlay().register(
+            ModPayloads.SeamPassthroughConfigPayload.TYPE,
+            ModPayloads.SeamPassthroughConfigPayload.STREAM_CODEC
+        );
         PayloadTypeRegistry.clientboundPlay().register(
             ModPayloads.RemoteBlockUpdateBatchPayload.TYPE,
             ModPayloads.RemoteBlockUpdateBatchPayload.STREAM_CODEC

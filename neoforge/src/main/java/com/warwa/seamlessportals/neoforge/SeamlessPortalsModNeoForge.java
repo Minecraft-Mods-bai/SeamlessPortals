@@ -182,6 +182,9 @@ public class SeamlessPortalsModNeoForge {
                     if (server == null) {
                         return;
                     }
+                    // Multiplayer 2026-09-27: the server's passthroughExtras switch FIRST, so
+                    // the client's gate is set before the first occupancy cell lands.
+                    com.warwa.seamlessportals.passthrough.SeamPassthroughSync.sendTo(player);
                     for (net.minecraft.server.level.ServerLevel level : server.getAllLevels()) {
                         com.warwa.seamlessportals.passthrough.SeamOccupancySavedData
                             .sendAllTo(level, player);

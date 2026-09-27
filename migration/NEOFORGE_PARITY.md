@@ -125,9 +125,11 @@ would desync the cache once; none exists in the target runtime today.
   own escape hatch) is on the run config; production never runs that code.
 
 **Still open (low, non-blocking):**
-1. **L3 dedicated-server join**: the pieces are individually proven (server boots flag-ON,
-   client boots, config-phase seams registered); one manual Join with
-   `-PquickPlayServer=127.0.0.1:25565` watches `serverVersion` + `ImmPtlConfigurationTask`.
+1. **L3 dedicated-server join** — CLOSED 2026-09-27 by the dedicated-server/multiplayer
+   engagement (`migration/DEDICATED_SERVER_MULTIPLAYER.md`): both loaders' servers boot again
+   after the post-parity code regressed the dist doctrine (§3), and a client-gametest smoke
+   joins a real DedicatedServer over a socket and crosses portals both ways. The §3 rule now has
+   an oracle (memory `dedicated-server-link-oracle`) — run it before any "works on servers" claim.
 2. Datapack `summon immersive_portals:portal` inline NBT arrives EMPTY on 26.2 (the
    headless probe path only; wand/commands unaffected; `nfsmoke` pack reproduces).
 3. C5.2: config payloads are `.optional()` + unversioned so IP's ModVersion handshake is

@@ -317,12 +317,15 @@ public class NeoForgePlatformHelper implements PlatformHelper {
         // checkPacket UnsupportedOperationException INSIDE the senders' swallow-all try/catch,
         // so seams silently never bound on NF ("standard old IP behavior") instead of crashing.
         registerClientboundPayload(ModPayloads.SeamOccupancyPayload.TYPE, ModPayloads.SeamOccupancyPayload.STREAM_CODEC);
+        // Multiplayer 2026-09-27: the server-authoritative passthroughExtras switch (Fabric twin
+        // in FabricPlatformHelper.registerPayloads).
+        registerClientboundPayload(ModPayloads.SeamPassthroughConfigPayload.TYPE, ModPayloads.SeamPassthroughConfigPayload.STREAM_CODEC);
         registerServerboundPayload(ModPayloads.RequestPortalDataPayload.TYPE, ModPayloads.RequestPortalDataPayload.STREAM_CODEC);
         registerServerboundPayload(ModPayloads.ClientPortalCrossingPayload.TYPE, ModPayloads.ClientPortalCrossingPayload.STREAM_CODEC);
         registerServerboundPayload(ModPayloads.RedirectedChunkAckPayload.TYPE, ModPayloads.RedirectedChunkAckPayload.STREAM_CODEC);
 
         SeamlessPortalsConstants.LOGGER.info(
-            "NeoForge network payloads queued (20 types: 19 block-era + seam occupancy; drained at RegisterPayloadHandlersEvent)");
+            "NeoForge network payloads queued (21 types: 19 block-era + seam occupancy + seam passthrough config; drained at RegisterPayloadHandlersEvent)");
     }
 
     public static void onRegisterPayloadHandlers(RegisterPayloadHandlersEvent event) {

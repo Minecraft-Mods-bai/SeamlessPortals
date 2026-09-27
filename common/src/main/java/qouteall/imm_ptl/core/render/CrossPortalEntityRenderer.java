@@ -1281,8 +1281,9 @@ public class CrossPortalEntityRenderer {
             // ★ PASSTHROUGH EXTRAS scope: both extraction overrides below are part of the
             // extras feature set — with the master config OFF they stay inert, so non-seam IP
             // portal projections render byte-identically to the pre-extras engine.
-            boolean passthroughExtrasOn = qouteall.imm_ptl.core.platform_specific.IPConfig
-                .getConfig().passthroughExtras;
+            // Multiplayer 2026-09-27: the server-sent switch while connected (SeamPassthroughSync).
+            boolean passthroughExtrasOn =
+                com.warwa.seamlessportals.passthrough.SeamPassthroughSync.enabledForClient();
             if (passthroughExtrasOn
                 && !com.warwa.seamlessportals.passthrough.AperturePassthroughLever
                     .DISABLE_SEAM_PROJECTION_CAMERA_DISTANCE) {

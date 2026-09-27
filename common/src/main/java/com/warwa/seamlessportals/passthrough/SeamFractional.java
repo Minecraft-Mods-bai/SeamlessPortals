@@ -861,7 +861,13 @@ public final class SeamFractional {
         // near pass and the window pass then outline coincident whole cubes that merge into one
         // normal block box, with no cut-face rectangle at the plane. Rays never run inside the
         // extract, so the viewer-half targeting rule below is untouched.
-        if (com.warwa.seamlessportals.render.SeamCounterpartOutline.extractingOutline) {
+        // DEDICATED-SERVER DIST SPLIT (2026-09-27): everything inside this block is the CLIENT's
+        // outline-draw rule — it reads render-thread statics (SeamCounterpartOutline) and the
+        // crosshair (Minecraft.hitResult). The isClientSide() test comes FIRST so a server never
+        // resolves SeamFractionalClient (an invokestatic is resolved when executed, never at link
+        // time); the reads themselves live in that client-only class so THIS class, which the
+        // server weaves into BlockStateBase, carries no client type in any method body.
+        if (lvl.isClientSide() && SeamFractionalClient.extractingOutline()) {
             // ★ THE OPEN HALF BOX — rounds 18/19's final geometry, viewpoint-INDEPENDENT:
             //
             // - WINDOW pass: unconditional full cube. The portal clip trims it to exactly the
@@ -932,22 +938,10 @@ public final class SeamFractional {
                 // for this cell (the through-window counterpart swap synthesizes a cell-centre
                 // hit; a centre point cannot pick a side honestly).
                 SeamOccupancy.Secondary s0 = SeamOccupancy.secondaryOf(lvl, pos);
-                byte targetHalf = owned0;
-                net.minecraft.world.phys.HitResult curHit =
-                    net.minecraft.client.Minecraft.getInstance().hitResult;
-                if (curHit == com.warwa.seamlessportals.render.SeamCounterpartOutline.nearHit
-                    && com.warwa.seamlessportals.render.SeamCounterpartOutline.nearHitHalf != 0) {
-                    // Round 26: the through-window swap's hit is a synthetic cell CENTRE — a
-                    // point ON the plane picks a side arbitrarily, which is how targeting a
-                    // two-object cell's dest half lost its near half. The swap now carries the
-                    // REAL remote hit's side, mapped through the binding; use it directly.
-                    targetHalf = com.warwa.seamlessportals.render.SeamCounterpartOutline.nearHitHalf;
-                } else if (curHit instanceof net.minecraft.world.phys.BlockHitResult bhr
-                    && bhr.getType() != net.minecraft.world.phys.HitResult.Type.MISS
-                    && bhr.getBlockPos().equals(pos)) {
-                    targetHalf = SeamOccupancy.halfFromHit(
-                        bhr.getLocation(), pos, axis0, off0);
-                }
+                // The crosshair consultation (Minecraft.hitResult + the round-26 counterpart-swap
+                // side) lives in the CLIENT-ONLY helper — see the dist-split note at the top of
+                // this block. Body moved verbatim; the fallback is the primary, as before.
+                byte targetHalf = SeamFractionalClient.outlineTargetHalf(pos, axis0, off0, owned0);
                 net.minecraft.world.phys.shapes.VoxelShape shape;
                 if (targetHalf != owned0 && s0 != null && s0.half() == targetHalf) {
                     shape = net.minecraft.world.phys.shapes.Shapes.join(
@@ -1248,10 +1242,15 @@ public final class SeamFractional {
             // every portal-view consumer reads (SeamOccupancyClient's proven resolution) — the
             // manager's store answered NULL cross-dim and the prediction silently died (the
             // round-13 probe line: "farClient=NULL (no prediction — the lag)").
-            net.minecraft.client.multiplayer.ClientLevel farClient =
-                level.dimension().equals(binding.destDim())
-                    ? (net.minecraft.client.multiplayer.ClientLevel) level
-                    : qouteall.imm_ptl.core.ClientWorldLoader.peekWorld(binding.destDim());
+            // DEDICATED-SERVER DIST SPLIT (2026-09-27): the ClientLevel cast + ClientWorldLoader
+            // peek moved into SeamFractionalClient, which hands back a plain Level. The old
+            // in-line form handed a ClientLevel to setSecondary's Level parameter — an
+            // assignability proof the verifier completes by LOADING ClientLevel, which is exactly
+            // the NoClassDefFoundError both dedicated servers threw at Blocks.<clinit> (this class
+            // links when BlockStateBaseFractionalMixin first calls it). Reached only inside the
+            // isClientSide() branch above, so a server never resolves the helper.
+            net.minecraft.world.level.Level farClient =
+                SeamFractionalClient.peekClientLevel(level, binding.destDim());
             if (farClient != null) {
                 SeamOccupancy.setSecondary(farClient, binding.destPos(),
                     new SeamOccupancy.Secondary(

@@ -929,6 +929,33 @@ loom {
         // D4.6 — re-run at every later stage). Own run dir: its config is
         // seeded with entityPortals=true (the load-time master switch) before
         // every launch, so it never contaminates the title-card run dir.
+        // DEDICATED-SERVER / MULTIPLAYER SMOKE (2026-09-27): DedicatedServerSmoke drives a real
+        // client against a real DedicatedServer (in-process, via the client-gametest API's
+        // createServer) over a real socket — join, portal sync, seam binding, same-dim and
+        // cross-dim crossings by WALKING, remote-dim block sync, rejoin. Screenshots land in
+        // runs/gametest-dedicated/screenshots. Selected by the gametest.only property; the
+        // default 8-leg suite never runs it —
+        //   .\gradlew.bat :fabric:runDedicatedServerGametest
+        dedicatedServerGametest {
+            client()
+            setConfigName('Dedicated Server Smoke')
+            runDir('runs/gametest-dedicated')
+            property('fabric.client.gametest', 'true')
+            property('fabric.client.gametest.modid', project.mod_id)
+            property('seamlessportals.gametest.only', 'dedicated')
+            // Fixed username so a SEPARATE-PROCESS server can pre-op it (runs/server/ops.json
+            // carries the offline-mode UUID of "SmokePlayer").
+            programArgs('--username', 'SmokePlayer')
+            // EXTERNAL-SERVER mode: the same legs against a dedicated server running in ANOTHER
+            // process (the real topology). Staging goes through chat commands (the player is
+            // opped), verdicts come from the client's own observations —
+            //   .\gradlew.bat :fabric:runDedicatedServerGametest -PexternalServer=127.0.0.1:25565
+            if (project.hasProperty('externalServer')) {
+                property('seamlessportals.gametest.externalServer', project.externalServer.toString())
+            }
+            c2JitArgs().each { vmArg(it) }
+            vmArg('-XX:-OmitStackTraceInFastThrow')
+        }
         crossingGametest {
             client()
             setConfigName('Entity Crossing Smoke')
@@ -1387,6 +1414,20 @@ tasks.matching { it.name == 'runClientGametest' }.configureEach {
 // before the JVM starts — no in-game mechanism can flip it.
 // S17 note: the explicit seed stays (redundant with the flipped default, but the test's
 // contract should not silently depend on the shipping default).
+// Same seed for the dedicated-server smoke's run dir (the in-process DedicatedServer reads the
+// SAME config dir as the client that hosts it, so one file covers both sides).
+tasks.matching { it.name == 'runDedicatedServerGametest' }.configureEach {
+    doFirst {
+        def cfgDir = file('runs/gametest-dedicated/config')
+        cfgDir.mkdirs()
+        new File(cfgDir, 'seamlessportals.properties').text = 'entityPortals=true\n'
+        new File(cfgDir, 'immersive_portals.json').text = '{\n  "initialScreenShown": true\n}\n'
+        // The in-process DedicatedServer runs with the run dir as its cwd and refuses to start
+        // on an unaccepted EULA (the client-gametest framework writes server.properties only).
+        new File(file('runs/gametest-dedicated'), 'eula.txt').text = 'eula=true\n'
+    }
+}
+
 tasks.matching { it.name == 'runCrossingGametest' }.configureEach {
     doFirst {
         def cfgDir = file('runs/gametest-crossing/config')
