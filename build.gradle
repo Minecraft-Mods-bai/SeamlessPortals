@@ -2,3 +2,36 @@ plugins {
     id 'net.neoforged.moddev' version '2.0.141' apply false
     id 'net.fabricmc.fabric-loom' version '1.17.11' apply false
 }
+
+// ============================================================================================
+// USER RULE (2026-09-27, machine-wide — see C:\Users\warwa\.claude\CLAUDE.md): every jar a loader
+// module builds is ALSO placed in <root>/build/libs, so all shippable jars sit in one place:
+//   fabric/build/libs, neoforge/build/libs  ->  build/libs (this directory)
+// Wired into the build itself (a Sync that finalizes each loader module's `assemble`) so it holds
+// for EVERY build — any session, IntelliJ, or the command line — not just when someone remembers.
+// The root build/libs is a mirror of the loader modules' current jars (stale jars disappear).
+// :common is an internal module (the loaders recompile its source); its jars are not mod jars
+// and are deliberately NOT collected — deploying one would do nothing.
+// ============================================================================================
+def loaderModules = subprojects.findAll { it.name != 'common' }
+
+def collectJars = tasks.register('collectJars', Sync) {
+    group = 'build'
+    description = "Mirrors every loader module's built jars into the root build/libs"
+    loaderModules.each { sp ->
+        from(sp.layout.buildDirectory.dir('libs')) { include '*.jar' }
+        // Ordering only (never a dependency): running :fabric:build must not drag :neoforge:build
+        // along, yet whichever jar tasks ARE in this build must finish before the copy.
+        mustRunAfter sp.tasks.withType(Jar)
+        mustRunAfter sp.tasks.matching { it.name == 'assemble' }
+    }
+    into layout.buildDirectory.dir('libs')
+    doLast {
+        logger.lifecycle("[collectJars] root build/libs now holds:")
+        destinationDir.listFiles()?.sort()?.each { logger.lifecycle("[collectJars]   " + it.name) }
+    }
+}
+
+loaderModules.each { sp ->
+    sp.tasks.matching { it.name == 'assemble' }.configureEach { finalizedBy collectJars }
+}
